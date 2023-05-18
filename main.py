@@ -12,10 +12,12 @@ import asyncio
 import websockets
 import json
 
+import concurrent.futures
 
 PHILLIPS_USER = '3S14qYX-fdFjoOEwHlnvwhncIvsGzO2ux4NMJ55w'
+
+
 # 10: strip, 4: ceil, 5: ceil, 6: lamp, 7: lamp
-LIGHTS = [10, 4, 5, 6, 7]
 
 
 async def main():
@@ -67,31 +69,19 @@ async def main():
                     # r, g, b = tuple(map(round, hsv_to_rgb(hue, saturation, value)))
                     # print(f"Scaled color: {(r, g, b)}")
 
+                    data = {"on": True,
+                            "sat": round(saturation * 255.),
+                            "bri": round(value),
+                            "hue": round(hue * 65535)}
+
+                    start = time.perf_counter()
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                    #     res = requests.post("https://bigblock:2060/turn/lights/color",
-                    #                         data={"color": f"#{r:02X}{g:02X}{b:02X}"},
-                    #                         verify=False)
-                    #     if res.status_code in range(200, 300):
-                    #         print("Successfully set lights color")
-                    #     else:
-                    #         print(f"Got status {res.status_code} while setting lights")
-
-                        responses = []
-                        data = {"on": True,
-                                "sat": round(saturation * 255.),
-                                "bri": round(value),
-                                "hue": round(hue * 65535)}
-                        start = time.perf_counter()
-                        for light in LIGHTS:
-                            # print(data)
-                            res = requests.put(f"https://192.168.50.89/api/{PHILLIPS_USER}/lights/{light}/state",
-                                               json=data,
-                                               verify=False)
-                            responses.append((light, res.status_code, res.json()))
-                        print(f"Took {1000 * (time.perf_counter() - start):.2f}ms")
-                        for r in responses:
-                            print(r)
+                        res = requests.put(f"https://192.168.50.89/api/{PHILLIPS_USER}/groups/1/action",
+                                           json=data,
+                                           verify=False)
+                    print(res.status_code, res.json())
+                    print(f"Took {1000 * (time.perf_counter() - start):.2f}ms")
 
                     current_map = current_map_pending
                 except UnidentifiedImageError:
@@ -147,7 +137,6 @@ const changeLight = async (light, color) => {
         })
 }
 """
-
 
 if __name__ == "__main__":
     asyncio.run(main())
