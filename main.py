@@ -1,15 +1,21 @@
 import io
+import time
 import urllib.parse
 import warnings
 
 import tqdm as tqdm
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import numpy as np
 import requests
 from colorsys import hsv_to_rgb, rgb_to_hsv
 import asyncio
 import websockets
 import json
+
+
+PHILLIPS_USER = '3S14qYX-fdFjoOEwHlnvwhncIvsGzO2ux4NMJ55w'
+# 10: strip, 4: ceil, 5: ceil, 6: lamp, 7: lamp
+LIGHTS = [10, 4, 5, 6, 7]
 
 
 async def main():
@@ -58,25 +64,89 @@ async def main():
                     hue, saturation, value = rgb_to_hsv(*chan_avg)
                     value = value / 255 * 135 + 120  # map from 0-255 to 120-255
                     saturation = saturation * 0.6 + 0.4  # map from 0.0-1.0 to 0.4-1.0
-                    r, g, b = tuple(map(round, hsv_to_rgb(hue, saturation, value)))
-                    print(f"Scaled color: {(r, g, b)}")
+                    # r, g, b = tuple(map(round, hsv_to_rgb(hue, saturation, value)))
+                    # print(f"Scaled color: {(r, g, b)}")
 
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        res = requests.post("https://bigblock:2060/turn/lights/color",
-                                            data={"color": f"#{r:02X}{g:02X}{b:02X}"},
-                                            verify=False)
-                        if res.status_code in range(200, 300):
-                            print("Successfully set lights color")
-                        else:
-                            print(f"Got status {res.status_code} while setting lights")
+                    #     res = requests.post("https://bigblock:2060/turn/lights/color",
+                    #                         data={"color": f"#{r:02X}{g:02X}{b:02X}"},
+                    #                         verify=False)
+                    #     if res.status_code in range(200, 300):
+                    #         print("Successfully set lights color")
+                    #     else:
+                    #         print(f"Got status {res.status_code} while setting lights")
+
+                        responses = []
+                        data = {"on": True,
+                                "sat": round(saturation * 255.),
+                                "bri": round(value),
+                                "hue": round(hue * 65535)}
+                        start = time.perf_counter()
+                        for light in LIGHTS:
+                            # print(data)
+                            res = requests.put(f"https://192.168.50.89/api/{PHILLIPS_USER}/lights/{light}/state",
+                                               json=data,
+                                               verify=False)
+                            responses.append((light, res.status_code, res.json()))
+                        print(f"Took {1000 * (time.perf_counter() - start):.2f}ms")
+                        for r in responses:
+                            print(r)
+
                     current_map = current_map_pending
+                except UnidentifiedImageError:
+                    continue
                 except Exception as e:
                     print("Caught exception at outermost level: " + e.__class__.__name__)
                     continue
 
         except websockets.ConnectionClosed:
             continue
+
+
+"""
+const lightPut = async (data) => {
+        return new Promise((resolve, reject) => {
+                request({
+                    method: 'PUT',
+                    body: JSON.stringify(data.data),
+                    url: `https://192.168.50.89/api/${PHILLIPS_USER}/lights/${data.device}/state`
+                }, (error,response, body) => {
+                        resolve(body);
+                })
+        })
+}
+
+const changeLight = async (light, color) => {
+        new Promise(async (resolve, reject)=>{
+
+                setTimeout(async ()=>{
+                        console.log(color);
+                        let rgbColor = hexToRgb(color);
+                        console.log(rgbColor);
+                        if(globalFlags.night) {
+                                rgbColor.r = rgbColor.r * 100 / 255;
+                                rgbColor.g = rgbColor.g * 100 / 255;
+                                rgbColor.b = rgbColor.b * 100 / 255;
+                                console.log('Reduced colors cause night:',rgbColor);
+                        }
+
+                        let colorHSV = rgb2hsv(rgbColor.r,rgbColor.g,rgbColor.b);
+
+                        const result = await lightPut({
+                                data: {"on":true, "sat":colorHSV.s, "bri":colorHSV.v, "hue":colorHSV.h},
+                                device: light
+                        });
+                        console.log(light, result);
+                        if(result) {
+                                console.log(`Changed the light #${light} color to H:${colorHSV.h} S:${colorHSV.s} V:${colorHSV.v}`);
+                                resolve(`Changed the light #${light} color to H:${colorHSV.h} S:${colorHSV.s} V:${colorHSV.v}`);
+                        }
+                }, 500);
+
+        })
+}
+"""
 
 
 if __name__ == "__main__":
