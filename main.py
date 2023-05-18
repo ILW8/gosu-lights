@@ -80,8 +80,7 @@ async def main():
                         res = requests.put(f"https://192.168.50.89/api/{PHILLIPS_USER}/groups/1/action",
                                            json=data,
                                            verify=False)
-                    print(res.status_code, res.json())
-                    print(f"Took {1000 * (time.perf_counter() - start):.2f}ms")
+                    print(f"Took {1000 * (time.perf_counter() - start):.2f}ms: ", res.status_code, res.json())
 
                     current_map = current_map_pending
                 except UnidentifiedImageError:
